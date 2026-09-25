@@ -6,13 +6,13 @@ from PIL import Image, ImageTk
 
 N_LINHAS = 4
 N_COLUNAS = 4
-
+# Agente simples reativo com padrão de varredura em matriz 4x4
 class AgenteAspiradorMatriz:
     def __init__(self):
         # Direção horizontal de varredura: 1 para direita, -1 para esquerda
-        self.direcao_h = 1 
+        self.direcao = (1, 0)  # (direcao_h, direcao_v) -> (horizontal, vertical) 1,0 -> 0,-1 -> -1,0 -> 0,-1 -> 1,0
 
-    def obter_acao(self, linha, coluna, estado_sujeira):
+    def obter_acao(self, estado_sujeira, colisao = False):
         """
         Regra Condição-Ação Reativa com padrão de varredura em matriz:
         1. Se o quadrado atual está sujo -> Aspirar
@@ -21,29 +21,35 @@ class AgenteAspiradorMatriz:
         if estado_sujeira == "Sujo":
             return "Aspirar"
         
-        # Mover para a direita
-        if self.direcao_h == 1:
-            if coluna < N_COLUNAS - 1:
+
+        if self.direcao == (1,0):
+            if not colisao:
                 return "Direita"
             else:
-                if linha < N_LINHAS - 1:
-                    self.direcao_h = -1
-                    return "Baixo"
-                else:
-                    self.direcao_h = -1
-                    return "Esquerda"
-        
-        # Mover para a esquerda
-        else:
-            if coluna > 0:
+                self.direcao = (1,-1)  # Muda para baixo
+
+        elif self.direcao == (1, -1):
+            if not colisao:
+                self.direcao = (-1,0)  # Muda para esquerda
+                return "Baixo"
+            else:
+                self.direcao = (-1,0)  # Muda para esquerda
+
+        elif self.direcao == (-1,0):
+            if not colisao:
                 return "Esquerda"
             else:
-                if linha < N_LINHAS - 1:
-                    self.direcao_h = 1
-                    return "Baixo"
-                else:
-                    self.direcao_h = 1
-                    return "Direita"
+                self.direcao = (-1,-1)  # Muda para baixo
+        elif self.direcao == (-1,-1):
+            if not colisao:
+                self.direcao = (1,0)  # Muda para direita
+                return "Baixo"
+            else:
+                self.direcao = (1,0)  # Muda para direita
+
+
+       
+
 
 
 class InterfaceMatrizAspirador:
@@ -192,11 +198,20 @@ class InterfaceMatrizAspirador:
         self.lbl_m1.config(text=f"Medida 1 (1 pt por célula limpa): {self.desempenho_m1} pts")
         self.lbl_m2.config(text=f"Medida 2 (Custo por movimento): {self.desempenho_m2} pts (Passos: {self.passos})")
 
+
+    def _verificar_colisao(self):
+        if self.agente.direcao == (1, 0):  # Movendo para a direita
+            return self.pos_coluna >= N_COLUNAS - 1
+        elif self.agente.direcao == (-1, 0):  # Movendo para a esquerda
+            return self.pos_coluna <= 0
+        elif self.agente.direcao == (1, -1) or self.agente.direcao == (-1, -1):  # Movendo para baixo
+            return self.pos_linha >= N_LINHAS - 1
+
     def passo_simulacao(self):
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
 
         # 1. Obter ação reativa
-        acao = self.agente.obter_acao(self.pos_linha, self.pos_coluna, estado_atual)
+        acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
 
         # 2. Executar Ação no Ambiente
         custo_movimento = 0
