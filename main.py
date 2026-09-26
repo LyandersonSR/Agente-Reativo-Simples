@@ -3,7 +3,6 @@ import random
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
-
 from agente_simples import AgenteAspiradorMatriz
 from agente_modelo import AgenteAspiradorMatrizInteligente
 
@@ -13,24 +12,27 @@ N_COLUNAS = 4
 class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
-        self.root.title("Aspirador de Pó Reativo Simples - Matriz 4x4")
-        self.root.geometry("680x720")
+        self.root.title("Agete Aspirador de Pó - Matriz 4x4")
+        self.root.geometry("680x750")
         self.root.resizable(False, False)
         self.colisao = False
 
-        # Escolha o agente desejado aqui:
-        #self.agente = AgenteAspiradorMatriz()
-        self.agente = AgenteAspiradorMatrizInteligente()
+        
+        self.agentes_disponiveis = {
+            "Agente Reativo Simples": AgenteAspiradorMatriz,
+            "Agente Baseado em Modelo (Inteligente)": AgenteAspiradorMatrizInteligente
+        }
 
-        # Posicionamento inicial
+        # Instancia o agente inicial (Reativo Simples por padrão)
+        self.agente = AgenteAspiradorMatriz()
+
         self.pos_linha = 0
         self.pos_coluna = 0
 
-        # Obter caminho absoluto do diretório do script para encontrar a imagem
         caminho_base = os.path.dirname(os.path.abspath(__file__))
         caminho_imagem = os.path.join(caminho_base, "aspira_agent.png")
 
-        # Carregar e redimensionar a imagem png
+        # Imagem do Robo
         self.img_agente = None
         try:
             if os.path.exists(caminho_imagem):
@@ -80,6 +82,22 @@ class InterfaceMatrizAspirador:
                     self.particulas_po[(l, c)] = particulas
 
     def _criar_widgets(self):
+        # Painel de Seleção de Agente
+        frame_agente = ttk.LabelFrame(self.root, text=" Seleção do Agente ", padding=10)
+        frame_agente.pack(fill="x", padx=15, pady=5)
+
+        ttk.Label(frame_agente, text="Tipo de Agente: ").pack(side="left", padx=5)
+        
+        self.combo_agente = ttk.Combobox(
+            frame_agente, 
+            values=list(self.agentes_disponiveis.keys()),
+            state="readonly",
+            width=38
+        )
+        self.combo_agente.current(0)
+        self.combo_agente.pack(side="left", padx=5)
+        self.combo_agente.bind("<<ComboboxSelected>>", self._trocar_agente)
+
         # Painel Superior: Controles
         frame_top = ttk.LabelFrame(self.root, text=" Painel de Controle ", padding=10)
         frame_top.pack(fill="x", padx=15, pady=5)
@@ -119,6 +137,21 @@ class InterfaceMatrizAspirador:
             foreground="#2e6da4"
         )
         self.lbl_global.pack(anchor="w")
+
+    def _trocar_agente(self, event=None):
+        """Troca a classe do agente dinamicamente com base na seleção do Combobox."""
+        agente_selecionado = self.combo_agente.get()
+        classe_agente = self.agentes_disponiveis[agente_selecionado]
+        self.agente = classe_agente()
+        
+        # Reseta o histórico global para comparar métricas do novo agente sem mistura
+        self.historico_m1.clear()
+        self.historico_m2.clear()
+        self.lbl_global.config(
+            text="Pontuação Média Global | Medida 1: 0.00 pts | Medida 2: 0.00 pts (0 execuções)"
+        )
+        
+        self.resetar_simulacao()
 
     def _atualizar_interface(self):
         self.canvas.delete("all")
@@ -163,7 +196,12 @@ class InterfaceMatrizAspirador:
 
     def passo_simulacao(self):
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
-        # 1. Obter ação reativa
+        
+        # Atualizar a posição conhecida no mapa caso o agente seja baseado em modelo
+        if hasattr(self.agente, 'posicao_atual'):
+            self.agente.posicao_atual = (self.pos_linha, self.pos_coluna)
+
+        # 1. Obter ação do agente
         acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
 
         # 2. Executar Ação no Ambiente
@@ -228,9 +266,10 @@ class InterfaceMatrizAspirador:
         self.desempenho_m1 = 0
         self.desempenho_m2 = 0
         
-        # Reiniciar a direção do agente ao dar reset
-        if hasattr(self.agente, 'direcao'):
-            self.agente.direcao = (0, 1)
+        # Reiniciar o estado interno do agente selecionado
+        agente_selecionado = self.combo_agente.get()
+        classe_agente = self.agentes_disponiveis[agente_selecionado]
+        self.agente = classe_agente()
 
         self._gerar_sujeira_aleatoria()
         self.lbl_acao.config(text="Última Ação: Nenhuma")
