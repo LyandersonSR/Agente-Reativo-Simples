@@ -6,13 +6,13 @@ from PIL import Image, ImageTk
 
 N_LINHAS = 4
 N_COLUNAS = 4
-
+# Agente simples reativo com padrão de varredura em matriz 4x4
 class AgenteAspiradorMatriz:
     def __init__(self):
         # Direção horizontal de varredura: 1 para direita, -1 para esquerda
-        self.direcao_h = 1 
+        self.direcao = (0, 1)  # (direcao_v, direcao_h)
 
-    def obter_acao(self, linha, coluna, estado_sujeira):
+    def obter_acao(self, estado_sujeira, colisao):
         """
         Regra Condição-Ação Reativa com padrão de varredura em matriz:
         1. Se o quadrado atual está sujo -> Aspirar
@@ -21,29 +21,60 @@ class AgenteAspiradorMatriz:
         if estado_sujeira == "Sujo":
             return "Aspirar"
         
-        # Mover para a direita
-        if self.direcao_h == 1:
-            if coluna < N_COLUNAS - 1:
-                return "Direita"
-            else:
-                if linha < N_LINHAS - 1:
-                    self.direcao_h = -1
-                    return "Baixo"
-                else:
-                    self.direcao_h = -1
-                    return "Esquerda"
-        
-        # Mover para a esquerda
-        else:
-            if coluna > 0:
+
+        if self.direcao == (0, 1): #direita
+            if (not colisao[0][1])and (colisao[1][1]):  # Colisão para direita
+                self.direcao = (0, -1)  # Muda para esquerda
+                return "Baixo"
+            elif (colisao[0][1]) and (colisao[1][1]):  # Colisão para baixo
+                self.direcao = (0, -1)  # Muda para esquerda
                 return "Esquerda"
             else:
-                if linha < N_LINHAS - 1:
-                    self.direcao_h = 1
-                    return "Baixo"
-                else:
-                    self.direcao_h = 1
-                    return "Direita"
+                return "Direita"
+        if self.direcao == (0, -1): #esquerda
+            if (not colisao[0][1]) and (colisao[1][0]):  # Colisão para esquerda
+                self.direcao = (0, 1)  # Muda para direita
+                return "Baixo"
+            elif colisao[0][1] and colisao[1][0]:  # Colisão para baixo
+                self.direcao = (0, 1)  # Muda para direita
+                return "Direita"
+            else:
+                return "Esquerda"
+            
+
+
+class AgenteAspiradorMatrizInteligente:
+    def __init__(self):
+        self.direcao = (0, 1)  # (direcao_v, direcao_h)
+        self.posicao_atual = (0,0)
+        self.mapa = {(0,0): "Desconhecido"}  
+        self.estados = ["Sujo", "Limpo", "Obstaculo", "Desconhecido"]
+
+    def obter_acao(self, estado_sujeira, colisao):
+        if estado_sujeira == "Sujo":
+            self.mapa[self.posicao_atual] = "Limpo"
+            return "Aspirar"
+        
+        # Lógica de varredura inteligente
+        if self.direcao == (0, 1):  # direita
+            if (not colisao[0][1]) and (colisao[1][1]):  # Colisão para direita
+                self.direcao = (0, -1)  # Muda para esquerda
+                return "Baixo"
+            elif (colisao[0][1]) and (colisao[1][1]):  # Colisão para baixo
+                self.direcao = (0, -1)  # Muda para esquerda
+                return "Esquerda"
+            else:
+                return "Direita"
+        if self.direcao == (0, -1):  # esquerda
+            if (not colisao[0][1]) and (colisao[1][0]):  # Colisão para esquerda
+                self.direcao = (0, 1)  # Muda para direita
+                return "Baixo"
+            elif colisao[0][1] and colisao[1][0]:  # Colisão para baixo
+                self.direcao = (0, 1)  # Muda para direita
+                return "Direita"
+            else:
+                return "Esquerda"
+
 
 
 class InterfaceMatrizAspirador:
@@ -52,6 +83,7 @@ class InterfaceMatrizAspirador:
         self.root.title("Aspirador de Pó Reativo Simples - Matriz 4x4")
         self.root.geometry("680x720")
         self.root.resizable(False, False)
+        self.colisao = False
 
         self.agente = AgenteAspiradorMatriz()
 
@@ -192,24 +224,31 @@ class InterfaceMatrizAspirador:
         self.lbl_m1.config(text=f"Medida 1 (1 pt por célula limpa): {self.desempenho_m1} pts")
         self.lbl_m2.config(text=f"Medida 2 (Custo por movimento): {self.desempenho_m2} pts (Passos: {self.passos})")
 
+
+    def _verificar_colisao(self):
+        return [[self.pos_linha <= 0, self.pos_linha >= N_LINHAS - 1],
+                [self.pos_coluna <= 0, self.pos_coluna >= N_COLUNAS - 1]]
+
     def passo_simulacao(self):
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
-
         # 1. Obter ação reativa
-        acao = self.agente.obter_acao(self.pos_linha, self.pos_coluna, estado_atual)
+        acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
 
         # 2. Executar Ação no Ambiente
         custo_movimento = 0
         if acao == "Aspirar":
             self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
         elif acao == "Direita":
-            self.pos_coluna += 1
+            if self._verificar_colisao()[1][1] is False:  # Verifica colisão à direita
+                self.pos_coluna += 1
             custo_movimento = 1
         elif acao == "Esquerda":
-            self.pos_coluna -= 1
+            if self._verificar_colisao()[1][0] is False:  # Verifica colisão à esquerda
+                self.pos_coluna -= 1
             custo_movimento = 1
         elif acao == "Baixo":
-            self.pos_linha += 1
+            if self._verificar_colisao()[0][1] is False:  # Verifica colisão para baixo
+                self.pos_linha += 1
             custo_movimento = 1
 
         # 3. Calcular Avaliação de Desempenho do Passo
