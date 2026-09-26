@@ -10,9 +10,9 @@ N_COLUNAS = 4
 class AgenteAspiradorMatriz:
     def __init__(self):
         # Direção horizontal de varredura: 1 para direita, -1 para esquerda
-        self.direcao = (1, 0)  # (direcao_h, direcao_v) -> (horizontal, vertical) 1,0 -> 0,-1 -> -1,0 -> 0,-1 -> 1,0
+        self.direcao = (0, 1)  # (direcao_v, direcao_h)
 
-    def obter_acao(self, estado_sujeira, colisao = False):
+    def obter_acao(self, estado_sujeira, colisao):
         """
         Regra Condição-Ação Reativa com padrão de varredura em matriz:
         1. Se o quadrado atual está sujo -> Aspirar
@@ -22,30 +22,25 @@ class AgenteAspiradorMatriz:
             return "Aspirar"
         
 
-        if self.direcao == (1,0):
-            if not colisao:
-                return "Direita"
-            else:
-                self.direcao = (1,-1)  # Muda para baixo
-
-        elif self.direcao == (1, -1):
-            if not colisao:
-                self.direcao = (-1,0)  # Muda para esquerda
+        if self.direcao == (0, 1): #direita
+            if (not colisao[0][1])and (colisao[1][1]):  # Colisão para direita
+                self.direcao = (0, -1)  # Muda para esquerda
                 return "Baixo"
-            else:
-                self.direcao = (-1,0)  # Muda para esquerda
-
-        elif self.direcao == (-1,0):
-            if not colisao:
+            elif (colisao[0][1]) and (colisao[1][1]):  # Colisão para baixo
+                self.direcao = (0, -1)  # Muda para esquerda
                 return "Esquerda"
             else:
-                self.direcao = (-1,-1)  # Muda para baixo
-        elif self.direcao == (-1,-1):
-            if not colisao:
-                self.direcao = (1,0)  # Muda para direita
+                return "Direita"
+        if self.direcao == (0, -1): #esquerda
+            if (not colisao[0][1]) and (colisao[1][0]):  # Colisão para esquerda
+                self.direcao = (0, 1)  # Muda para direita
                 return "Baixo"
+            elif colisao[0][1] and colisao[1][0]:  # Colisão para baixo
+                self.direcao = (0, 1)  # Muda para direita
+                return "Direita"
             else:
-                self.direcao = (1,0)  # Muda para direita
+                return "Esquerda"
+            
 
 
        
@@ -58,6 +53,7 @@ class InterfaceMatrizAspirador:
         self.root.title("Aspirador de Pó Reativo Simples - Matriz 4x4")
         self.root.geometry("680x720")
         self.root.resizable(False, False)
+        self.colisao = False
 
         self.agente = AgenteAspiradorMatriz()
 
@@ -200,16 +196,11 @@ class InterfaceMatrizAspirador:
 
 
     def _verificar_colisao(self):
-        if self.agente.direcao == (1, 0):  # Movendo para a direita
-            return self.pos_coluna >= N_COLUNAS - 1
-        elif self.agente.direcao == (-1, 0):  # Movendo para a esquerda
-            return self.pos_coluna <= 0
-        elif self.agente.direcao == (1, -1) or self.agente.direcao == (-1, -1):  # Movendo para baixo
-            return self.pos_linha >= N_LINHAS - 1
+        return [[self.pos_linha <= 0, self.pos_linha >= N_LINHAS - 1],
+                [self.pos_coluna <= 0, self.pos_coluna >= N_COLUNAS - 1]]
 
     def passo_simulacao(self):
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
-
         # 1. Obter ação reativa
         acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
 
@@ -218,13 +209,16 @@ class InterfaceMatrizAspirador:
         if acao == "Aspirar":
             self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
         elif acao == "Direita":
-            self.pos_coluna += 1
+            if self._verificar_colisao()[1][1] is False:  # Verifica colisão à direita
+                self.pos_coluna += 1
             custo_movimento = 1
         elif acao == "Esquerda":
-            self.pos_coluna -= 1
+            if self._verificar_colisao()[1][0] is False:  # Verifica colisão à esquerda
+                self.pos_coluna -= 1
             custo_movimento = 1
         elif acao == "Baixo":
-            self.pos_linha += 1
+            if self._verificar_colisao()[0][1] is False:  # Verifica colisão para baixo
+                self.pos_linha += 1
             custo_movimento = 1
 
         # 3. Calcular Avaliação de Desempenho do Passo
