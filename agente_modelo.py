@@ -1,5 +1,3 @@
-# agente_modelo.py
-
 class AgenteAspiradorMatrizInteligente:
     def __init__(self):
         self.direcao = (0, 1)  # (direcao_v, direcao_h)
