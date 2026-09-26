@@ -3,99 +3,36 @@ import random
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
+from agente_simples import AgenteAspiradorMatriz
+from agente_modelo import AgenteAspiradorMatrizInteligente
 
 N_LINHAS = 4
 N_COLUNAS = 4
-# Agente simples reativo com padrão de varredura em matriz 4x4
-class AgenteAspiradorMatriz:
-    def __init__(self):
-        # Direção horizontal de varredura: 1 para direita, -1 para esquerda
-        self.direcao = (0, 1)  # (direcao_v, direcao_h)
-
-    def obter_acao(self, estado_sujeira, colisao):
-        """
-        Regra Condição-Ação Reativa com padrão de varredura em matriz:
-        1. Se o quadrado atual está sujo -> Aspirar
-        2. Se está limpo -> Move-se no padrão zig-zag para cobrir a matriz
-        """
-        if estado_sujeira == "Sujo":
-            return "Aspirar"
-        
-
-        if self.direcao == (0, 1): #direita
-            if (not colisao[0][1])and (colisao[1][1]):  # Colisão para direita
-                self.direcao = (0, -1)  # Muda para esquerda
-                return "Baixo"
-            elif (colisao[0][1]) and (colisao[1][1]):  # Colisão para baixo
-                self.direcao = (0, -1)  # Muda para esquerda
-                return "Esquerda"
-            else:
-                return "Direita"
-        if self.direcao == (0, -1): #esquerda
-            if (not colisao[0][1]) and (colisao[1][0]):  # Colisão para esquerda
-                self.direcao = (0, 1)  # Muda para direita
-                return "Baixo"
-            elif colisao[0][1] and colisao[1][0]:  # Colisão para baixo
-                self.direcao = (0, 1)  # Muda para direita
-                return "Direita"
-            else:
-                return "Esquerda"
-            
-
-
-class AgenteAspiradorMatrizInteligente:
-    def __init__(self):
-        self.direcao = (0, 1)  # (direcao_v, direcao_h)
-        self.posicao_atual = (0,0)
-        self.mapa = {(0,0): "Desconhecido"}  
-        self.estados = ["Sujo", "Limpo", "Obstaculo", "Desconhecido"]
-
-    def obter_acao(self, estado_sujeira, colisao):
-        if estado_sujeira == "Sujo":
-            self.mapa[self.posicao_atual] = "Limpo"
-            return "Aspirar"
-        
-        # Lógica de varredura inteligente
-        if self.direcao == (0, 1):  # direita
-            if (not colisao[0][1]) and (colisao[1][1]):  # Colisão para direita
-                self.direcao = (0, -1)  # Muda para esquerda
-                return "Baixo"
-            elif (colisao[0][1]) and (colisao[1][1]):  # Colisão para baixo
-                self.direcao = (0, -1)  # Muda para esquerda
-                return "Esquerda"
-            else:
-                return "Direita"
-        if self.direcao == (0, -1):  # esquerda
-            if (not colisao[0][1]) and (colisao[1][0]):  # Colisão para esquerda
-                self.direcao = (0, 1)  # Muda para direita
-                return "Baixo"
-            elif colisao[0][1] and colisao[1][0]:  # Colisão para baixo
-                self.direcao = (0, 1)  # Muda para direita
-                return "Direita"
-            else:
-                return "Esquerda"
-
-
 
 class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
-        self.root.title("Aspirador de Pó Reativo Simples - Matriz 4x4")
-        self.root.geometry("680x720")
+        self.root.title("Agete Aspirador de Pó - Matriz 4x4")
+        self.root.geometry("680x750")
         self.root.resizable(False, False)
         self.colisao = False
 
+        
+        self.agentes_disponiveis = {
+            "Agente Reativo Simples": AgenteAspiradorMatriz,
+            "Agente Baseado em Modelo (Inteligente)": AgenteAspiradorMatrizInteligente
+        }
+
+        # Instancia o agente inicial (Reativo Simples por padrão)
         self.agente = AgenteAspiradorMatriz()
 
-        # Posicionamento inicial
         self.pos_linha = 0
         self.pos_coluna = 0
 
-        # Obter caminho absoluto do diretório do script para encontrar a imagem
         caminho_base = os.path.dirname(os.path.abspath(__file__))
         caminho_imagem = os.path.join(caminho_base, "aspira_agent.png")
 
-        # Carregar e redimensionar a imagem png (512x512 -> 60x60)
+        # Imagem do Robo
         self.img_agente = None
         try:
             if os.path.exists(caminho_imagem):
@@ -145,6 +82,22 @@ class InterfaceMatrizAspirador:
                     self.particulas_po[(l, c)] = particulas
 
     def _criar_widgets(self):
+        # Painel de Seleção de Agente
+        frame_agente = ttk.LabelFrame(self.root, text=" Seleção do Agente ", padding=10)
+        frame_agente.pack(fill="x", padx=15, pady=5)
+
+        ttk.Label(frame_agente, text="Tipo de Agente: ").pack(side="left", padx=5)
+        
+        self.combo_agente = ttk.Combobox(
+            frame_agente, 
+            values=list(self.agentes_disponiveis.keys()),
+            state="readonly",
+            width=38
+        )
+        self.combo_agente.current(0)
+        self.combo_agente.pack(side="left", padx=5)
+        self.combo_agente.bind("<<ComboboxSelected>>", self._trocar_agente)
+
         # Painel Superior: Controles
         frame_top = ttk.LabelFrame(self.root, text=" Painel de Controle ", padding=10)
         frame_top.pack(fill="x", padx=15, pady=5)
@@ -185,6 +138,21 @@ class InterfaceMatrizAspirador:
         )
         self.lbl_global.pack(anchor="w")
 
+    def _trocar_agente(self, event=None):
+        """Troca a classe do agente dinamicamente com base na seleção do Combobox."""
+        agente_selecionado = self.combo_agente.get()
+        classe_agente = self.agentes_disponiveis[agente_selecionado]
+        self.agente = classe_agente()
+        
+        # Reseta o histórico global para comparar métricas do novo agente sem mistura
+        self.historico_m1.clear()
+        self.historico_m2.clear()
+        self.lbl_global.config(
+            text="Pontuação Média Global | Medida 1: 0.00 pts | Medida 2: 0.00 pts (0 execuções)"
+        )
+        
+        self.resetar_simulacao()
+
     def _atualizar_interface(self):
         self.canvas.delete("all")
         tamanho_celula = 100
@@ -210,13 +178,11 @@ class InterfaceMatrizAspirador:
                             fill="#8a6d3b", outline="#6e5428"
                         )
 
-                # Desenhar Agente Aspirador (Usando a imagem PNG redimensionada)
+                # Desenhar Agente Aspirador
                 if l == self.pos_linha and c == self.pos_coluna:
                     if self.img_agente is not None:
-                        # Centraliza a imagem 60x60 no quadrado 100x100
                         self.canvas.create_image(x1 + 50, y1 + 50, image=self.img_agente)
                     else:
-                        # Fallback gráfico caso a imagem não exista
                         self.canvas.create_oval(x1 + 20, y1 + 20, x2 - 20, y2 - 20, fill="#337ab7", outline="#2e6da4", width=2)
                         self.canvas.create_text(x1 + 50, y1 + 50, text="ASPIRADOR", font=("Arial", 8, "bold"), fill="white")
 
@@ -224,14 +190,18 @@ class InterfaceMatrizAspirador:
         self.lbl_m1.config(text=f"Medida 1 (1 pt por célula limpa): {self.desempenho_m1} pts")
         self.lbl_m2.config(text=f"Medida 2 (Custo por movimento): {self.desempenho_m2} pts (Passos: {self.passos})")
 
-
     def _verificar_colisao(self):
         return [[self.pos_linha <= 0, self.pos_linha >= N_LINHAS - 1],
                 [self.pos_coluna <= 0, self.pos_coluna >= N_COLUNAS - 1]]
 
     def passo_simulacao(self):
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
-        # 1. Obter ação reativa
+        
+        # Atualizar a posição conhecida no mapa caso o agente seja baseado em modelo
+        if hasattr(self.agente, 'posicao_atual'):
+            self.agente.posicao_atual = (self.pos_linha, self.pos_coluna)
+
+        # 1. Obter ação do agente
         acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
 
         # 2. Executar Ação no Ambiente
@@ -239,19 +209,19 @@ class InterfaceMatrizAspirador:
         if acao == "Aspirar":
             self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
         elif acao == "Direita":
-            if self._verificar_colisao()[1][1] is False:  # Verifica colisão à direita
+            if self._verificar_colisao()[1][1] is False:
                 self.pos_coluna += 1
             custo_movimento = 1
         elif acao == "Esquerda":
-            if self._verificar_colisao()[1][0] is False:  # Verifica colisão à esquerda
+            if self._verificar_colisao()[1][0] is False:
                 self.pos_coluna -= 1
             custo_movimento = 1
         elif acao == "Baixo":
-            if self._verificar_colisao()[0][1] is False:  # Verifica colisão para baixo
+            if self._verificar_colisao()[0][1] is False:
                 self.pos_linha += 1
             custo_movimento = 1
 
-        # 3. Calcular Avaliação de Desempenho do Passo
+        # 3. Calcular Avaliação de Desempenho
         quadrados_limpos = sum(linha.count("Limpo") for linha in self.matriz)
 
         self.passos += 1
@@ -277,7 +247,6 @@ class InterfaceMatrizAspirador:
             self.root.after(300, self._loop_automatico)
 
     def resetar_simulacao(self):
-        # Registrar resultado da rodada anterior
         if self.passos > 0:
             self.historico_m1.append(self.desempenho_m1 / self.passos)
             self.historico_m2.append(self.desempenho_m2 / self.passos)
@@ -289,7 +258,6 @@ class InterfaceMatrizAspirador:
                 text=f"Pontuação Média Global por Passo | Medida 1: {media_m1:.2f} pts | Medida 2: {media_m2:.2f} pts ({len(self.historico_m1)} execuções)"
             )
 
-        # Reiniciar Estado
         self.executando = False
         self.btn_auto.config(text="Iniciar Automático")
         self.pos_linha = 0
@@ -297,11 +265,15 @@ class InterfaceMatrizAspirador:
         self.passos = 0
         self.desempenho_m1 = 0
         self.desempenho_m2 = 0
-        self.agente.direcao_h = 1
+        
+        # Reiniciar o estado interno do agente selecionado
+        agente_selecionado = self.combo_agente.get()
+        classe_agente = self.agentes_disponiveis[agente_selecionado]
+        self.agente = classe_agente()
+
         self._gerar_sujeira_aleatoria()
         self.lbl_acao.config(text="Última Ação: Nenhuma")
         self._atualizar_interface()
-
 
 if __name__ == "__main__":
     root = tk.Tk()
