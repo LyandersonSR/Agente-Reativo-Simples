@@ -209,7 +209,7 @@ class InterfaceMatrizAspirador:
         except ValueError:
             limite_passos = 25
 
-        # CRITÉRIO DE PARADA: Verifica se atingiu o limite de passos T
+        # CRITÉRIO DE PARADA 1: Verifica se atingiu o limite de passos T
         if self.passos >= limite_passos:
             if self.executando:
                 self.toggle_automatico()
@@ -220,6 +220,13 @@ class InterfaceMatrizAspirador:
 
         # 1. Obter ação do agente
         acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
+
+        # CRITÉRIO DE PARADA 2: O Agente Modelo identificou que não há mais o que fazer
+        if acao == "Parar":
+            if self.executando:
+                self.toggle_automatico()
+            self.lbl_acao.config(text="Simulação Concluída: O Agente identificou que o ambiente está limpo!")
+            return
 
         # 2. Executar Ação no Ambiente e calcular pontuações
         custo_movimento = 0
@@ -242,14 +249,14 @@ class InterfaceMatrizAspirador:
             if self._verificar_colisao()[0][1] is False:
                 self.pos_linha += 1
             custo_movimento = 1
+        elif acao == "Cima":
+            if self._verificar_colisao()[0][0] is False:
+                self.pos_linha -= 1
+            custo_movimento = 1
 
-        # 3. Atualizar Avaliações de Desempenho
+        # 3. Atualizar Avaliações de Desempenho (apenas se executou uma ação válida)
         self.passos += 1
-        
-        # Medida 1: Pontua estritamente +1 quando executa a ação 'Aspirar' na sujeira
         self.desempenho_m1 += pontos_aspiracao
-        
-        # Medida 2: Ganha +1 ponto ao aspirar, mas perde -1 ponto a cada movimento
         self.desempenho_m2 += (pontos_aspiracao - custo_movimento)
 
         # Atualizar Interface
