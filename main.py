@@ -12,12 +12,11 @@ N_COLUNAS = 4
 class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
-        self.root.title("Agete Aspirador de Pó - Matriz 4x4")
+        self.root.title("Agente Aspirador de Pó - Matriz 4x4")
         self.root.geometry("680x750")
         self.root.resizable(False, False)
         self.colisao = False
 
-        
         self.agentes_disponiveis = {
             "Agente Reativo Simples": AgenteAspiradorMatriz,
             "Agente Baseado em Modelo (Inteligente)": AgenteAspiradorMatrizInteligente
@@ -32,7 +31,7 @@ class InterfaceMatrizAspirador:
         caminho_base = os.path.dirname(os.path.abspath(__file__))
         caminho_imagem = os.path.join(caminho_base, "aspira_agent.png")
 
-        # Imagem do Robo
+        # Imagem do Robô
         self.img_agente = None
         try:
             if os.path.exists(caminho_imagem):
@@ -122,10 +121,10 @@ class InterfaceMatrizAspirador:
         self.lbl_acao = ttk.Label(frame_info, text="Última Ação: Nenhuma", font=("Arial", 10, "bold"))
         self.lbl_acao.pack(anchor="w", pady=2)
 
-        self.lbl_m1 = ttk.Label(frame_info, text="Medida 1 (Atual): 0 pts", font=("Arial", 9))
+        self.lbl_m1 = ttk.Label(frame_info, text="Medida 1 (+1 por ação Aspirar): 0 pts", font=("Arial", 9))
         self.lbl_m1.pack(anchor="w")
 
-        self.lbl_m2 = ttk.Label(frame_info, text="Medida 2 (Atual - Custo Mov.): 0 pts", font=("Arial", 9))
+        self.lbl_m2 = ttk.Label(frame_info, text="Medida 2 (Aspirar +1 / Movimento -1): 0 pts", font=("Arial", 9))
         self.lbl_m2.pack(anchor="w")
 
         ttk.Separator(frame_info, orient="horizontal").pack(fill="x", pady=5)
@@ -187,8 +186,8 @@ class InterfaceMatrizAspirador:
                         self.canvas.create_text(x1 + 50, y1 + 50, text="ASPIRADOR", font=("Arial", 8, "bold"), fill="white")
 
         # Atualizar textos das métricas
-        self.lbl_m1.config(text=f"Medida 1 (1 pt por célula limpa): {self.desempenho_m1} pts")
-        self.lbl_m2.config(text=f"Medida 2 (Custo por movimento): {self.desempenho_m2} pts (Passos: {self.passos})")
+        self.lbl_m1.config(text=f"Medida 1 (+1 por ação Aspirar): {self.desempenho_m1} pts")
+        self.lbl_m2.config(text=f"Medida 2 (Aspirar +1 / Movimento -1): {self.desempenho_m2} pts (Passos: {self.passos})")
 
     def _verificar_colisao(self):
         return [[self.pos_linha <= 0, self.pos_linha >= N_LINHAS - 1],
@@ -204,10 +203,15 @@ class InterfaceMatrizAspirador:
         # 1. Obter ação do agente
         acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
 
-        # 2. Executar Ação no Ambiente
+        # 2. Executar Ação no Ambiente e calcular pontuações
         custo_movimento = 0
+        pontos_aspiracao = 0
+
         if acao == "Aspirar":
-            self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
+            # Ganha ponto APENAS se o local estiver realmente sujo e for limpo nesta ação
+            if self.matriz[self.pos_linha][self.pos_coluna] == "Sujo":
+                pontos_aspiracao = 1
+                self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
         elif acao == "Direita":
             if self._verificar_colisao()[1][1] is False:
                 self.pos_coluna += 1
@@ -221,12 +225,14 @@ class InterfaceMatrizAspirador:
                 self.pos_linha += 1
             custo_movimento = 1
 
-        # 3. Calcular Avaliação de Desempenho
-        quadrados_limpos = sum(linha.count("Limpo") for linha in self.matriz)
-
+        # 3. Atualizar Avaliações de Desempenho
         self.passos += 1
-        self.desempenho_m1 += quadrados_limpos
-        self.desempenho_m2 += (quadrados_limpos - custo_movimento)
+        
+        # Medida 1: Pontua estritamente +1 quando executa a ação 'Aspirar' na sujeira
+        self.desempenho_m1 += pontos_aspiracao
+        
+        # Medida 2: Ganha +1 ponto ao aspirar, mas perde -1 ponto a cada movimento
+        self.desempenho_m2 += (pontos_aspiracao - custo_movimento)
 
         # Atualizar Interface
         self.lbl_acao.config(text=f"Última Ação: {acao} em ({self.pos_linha}, {self.pos_coluna})")
