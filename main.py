@@ -6,14 +6,14 @@ from PIL import Image, ImageTk
 from agente_simples import AgenteAspiradorMatriz
 from agente_modelo import AgenteAspiradorMatrizInteligente
 
-N_LINHAS = 6
-N_COLUNAS = 6
+N_LINHAS = 5
+N_COLUNAS = 5
 
 class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
         self.root.title("Agente Aspirador de Pó - Matriz nxm")
-        self.root.geometry("1080x1080")
+        self.root.geometry("960x1080")
         self.root.resizable(False, False)
         self.colisao = False
 
@@ -27,7 +27,8 @@ class InterfaceMatrizAspirador:
 
         self.pos_linha = random.randint(0, N_LINHAS - 1)
         self.pos_coluna = random.randint(0, N_COLUNAS - 1)
-
+        self.pos_linha_ini = self.pos_linha
+        self.pos_coluna_ini = self.pos_coluna
         caminho_base = os.path.dirname(os.path.abspath(__file__))
         caminho_imagem = os.path.join(caminho_base, "aspira_agent.png")
 
@@ -291,8 +292,12 @@ class InterfaceMatrizAspirador:
 
         self.executando = False
         self.btn_auto.config(text="Iniciar Automático")
-        self.pos_linha = random.randint(0, N_LINHAS - 1)
-        self.pos_coluna = random.randint(0, N_COLUNAS - 1)
+        if nova_configuracao:   
+            self.pos_linha = random.randint(0, N_LINHAS - 1)
+            self.pos_coluna = random.randint(0, N_COLUNAS - 1)
+        else:
+            self.pos_linha = self.pos_linha_ini
+            self.pos_coluna = self.pos_coluna_ini
         self.passos = 0
         self.desempenho_m1 = 0
         self.desempenho_m2 = 0

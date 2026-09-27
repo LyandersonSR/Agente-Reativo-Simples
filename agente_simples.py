@@ -35,5 +35,8 @@ class AgenteAspiradorMatriz:
                 self.direcao = (0, 1)  # Muda para direita
                 self.modo = 1
                 return "Cima"
+            elif colisao[0][0] and colisao[1][0]:  # Colisão para cima
+                self.direcao = (0, 1)  # Muda para direita
+                return "Direita"
             else:
                 return "Esquerda"
