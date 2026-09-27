@@ -1,42 +1,59 @@
 class AgenteAspiradorMatriz:
     def __init__(self):
-        # Direção horizontal de varredura: (direcao_v, direcao_h)
-        self.direcao = (0, 1)
-        self.modo = 0
+        # (linha, coluna) -> direcao_h: 1 para direita, -1 para esquerda
+        self.direcao = (0, 1) 
+        self.modo = 0  # 0: descendo na matriz, 1: subindo na matriz
 
     def obter_acao(self, estado_sujeira, colisao):
-        """
-        Regra Condição-Ação Reativa com padrão de varredura em matriz:
-        1. Se o quadrado atual está sujo -> Aspirar
-        2. Se está limpo -> Move-se no padrão zig-zag para cobrir a matriz
-        """
+        # Mapeamento da estrutura de colisao:
+        # colisao[0][0] = Cima | colisao[0][1] = Baixo
+        # colisao[1][0] = Esquerda | colisao[1][1] = Direita
+
         if estado_sujeira == "Sujo":
             return "Aspirar"
 
-        if self.direcao == (0, 1):  # direita
-            if (not colisao[0][1]) and (not colisao[0][0]) and(colisao[1][1]):  # Colisão para direita
-                self.direcao = (0, -1)  # Muda para esquerda
-                return "Baixo" if self.modo == 0 else "Cima"
-            elif (colisao[0][1]) and (colisao[1][1]):  # Colisão para baixo
-                self.direcao = (0, -1)  # Muda para esquerda
-                return "Esquerda"
-            elif (colisao[0][0]) and (colisao[1][1]):  # Colisão para cima
-                self.direcao = (0, -1)  # Muda para esquerda
-                self.modo = 0
-                return "Baixo"
+        # 1. Se estiver indo para a DIREITA
+        if self.direcao == (0, 1):
+            if colisao[1][1]:  # Bloqueado à DIREITA
+                self.direcao = (0, -1)  # Inverte para Esquerda
+                
+                # Tenta descer se não houver colisão abaixo
+                if not colisao[0][1] and self.modo == 0:
+                    return "Baixo"
+                # Tenta subir se não houver colisão acima
+                elif not colisao[0][0] and self.modo == 1:
+                    return "Cima"
+                # Se não der pra descer/subir no modo atual, tenta o outro lado
+                elif not colisao[0][1]:
+                    self.modo = 0
+                    return "Baixo"
+                elif not colisao[0][0]:
+                    self.modo = 1
+                    return "Cima"
+                else:
+                    return "Esquerda"  # Se tudo estiver bloqueado, apenas recua
             else:
                 return "Direita"
 
-        if self.direcao == (0, -1):  # esquerda
-            if (not colisao[0][1]) and (not colisao[0][0]) and (colisao[1][0]):  # Colisão para esquerda
-                self.direcao = (0, 1)  # Muda para direita
-                return "Baixo" if self.modo == 0 else "Cima"
-            elif colisao[0][1] and colisao[1][0]:  # Colisão para baixo
-                self.direcao = (0, 1)  # Muda para direita
-                self.modo = 1
-                return "Cima"
-            elif colisao[0][0] and colisao[1][0]:  # Colisão para cima
-                self.direcao = (0, 1)  # Muda para direita
-                return "Direita"
+        # 2. Se estiver indo para a ESQUERDA
+        if self.direcao == (0, -1):
+            if colisao[1][0]:  # Bloqueado à ESQUERDA
+                self.direcao = (0, 1)  # Inverte para Direita
+                
+                # Tenta descer se não houver colisão abaixo
+                if not colisao[0][1] and self.modo == 0:
+                    return "Baixo"
+                # Tenta subir se não houver colisão acima
+                elif not colisao[0][0] and self.modo == 1:
+                    return "Cima"
+                # Se não der pra descer/subir no modo atual, tenta o outro lado
+                elif not colisao[0][1]:
+                    self.modo = 0
+                    return "Baixo"
+                elif not colisao[0][0]:
+                    self.modo = 1
+                    return "Cima"
+                else:
+                    return "Direita"  # Se tudo estiver bloqueado, apenas recua
             else:
                 return "Esquerda"
