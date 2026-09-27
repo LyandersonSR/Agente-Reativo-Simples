@@ -13,7 +13,7 @@ class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
         self.root.title("Agente Aspirador de Pó - Matriz 4x4")
-        self.root.geometry("680x750")
+        self.root.geometry("690x750")
         self.root.resizable(False, False)
         self.colisao = False
 
@@ -107,8 +107,14 @@ class InterfaceMatrizAspirador:
         self.btn_auto = ttk.Button(frame_top, text="Iniciar Automático", command=self.toggle_automatico)
         self.btn_auto.pack(side="left", padx=5)
 
+        # Campo para definir o limite de passos (T)
+        ttk.Label(frame_top, text=" Passos (T):").pack(side="left", padx=(10, 2))
+        self.spin_passos = ttk.Spinbox(frame_top, from_=1, to=500, width=5)
+        self.spin_passos.set(25)  # Valor padrão: 25 passos
+        self.spin_passos.pack(side="left", padx=2)
+
         self.btn_reset = ttk.Button(frame_top, text="Nova Configuração (Reset)", command=self.resetar_simulacao)
-        self.btn_reset.pack(side="left", padx=5)
+        self.btn_reset.pack(side="right", padx=5)
 
         # Canvas para Desenhar a Matriz 4x4
         self.canvas = tk.Canvas(self.root, width=400, height=400, bg="#ffffff", highlightthickness=1)
@@ -194,6 +200,19 @@ class InterfaceMatrizAspirador:
                 [self.pos_coluna <= 0, self.pos_coluna >= N_COLUNAS - 1]]
 
     def passo_simulacao(self):
+        # Obter o limite de passos configurado pelo usuário no Painel de Controle
+        try:
+            limite_passos = int(self.spin_passos.get())
+        except ValueError:
+            limite_passos = 25
+
+        # CRITÉRIO DE PARADA: Verifica se atingiu o limite de passos T
+        if self.passos >= limite_passos:
+            if self.executando:
+                self.toggle_automatico()
+            self.lbl_acao.config(text=f"Simulação Concluída: Limite de {limite_passos} passos atingido!")
+            return
+
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
         
         # Atualizar a posição conhecida no mapa caso o agente seja baseado em modelo
