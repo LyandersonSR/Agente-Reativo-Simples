@@ -80,6 +80,9 @@ class InterfaceMatrizAspirador:
                         particulas.append((px, py, r))
                     self.particulas_po[(l, c)] = particulas
 
+        self.particulas_ini = self.particulas_po.copy()  # Salva o estado inicial para resetar depois
+        self.matriz_ini = [linha.copy() for linha in self.matriz]
+
     def _criar_widgets(self):
         # Painel de Seleção de Agente
         frame_agente = ttk.LabelFrame(self.root, text=" Seleção do Agente ", padding=10)
@@ -156,7 +159,7 @@ class InterfaceMatrizAspirador:
             text="Pontuação Média Global | Medida 1: 0.00 pts | Medida 2: 0.00 pts (0 execuções)"
         )
         
-        self.resetar_simulacao()
+        self.resetar_simulacao(nova_configuracao=False)  # Mantém a sujeira atual, apenas reseta métricas e posição
 
     def _atualizar_interface(self):
         self.canvas.delete("all")
@@ -214,10 +217,6 @@ class InterfaceMatrizAspirador:
             return
 
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
-        
-        # Atualizar a posição conhecida no mapa caso o agente seja baseado em modelo
-        if hasattr(self.agente, 'posicao_atual'):
-            self.agente.posicao_atual = (self.pos_linha, self.pos_coluna)
 
         # 1. Obter ação do agente
         acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
@@ -271,7 +270,7 @@ class InterfaceMatrizAspirador:
             self.passo_simulacao()
             self.root.after(300, self._loop_automatico)
 
-    def resetar_simulacao(self):
+    def resetar_simulacao(self, nova_configuracao=True):
         if self.passos > 0:
             self.historico_m1.append(self.desempenho_m1 / self.passos)
             self.historico_m2.append(self.desempenho_m2 / self.passos)
@@ -295,8 +294,11 @@ class InterfaceMatrizAspirador:
         agente_selecionado = self.combo_agente.get()
         classe_agente = self.agentes_disponiveis[agente_selecionado]
         self.agente = classe_agente()
-
-        self._gerar_sujeira_aleatoria()
+        if nova_configuracao:
+            self._gerar_sujeira_aleatoria()
+        else:
+            self.particulas_po = self.particulas_ini.copy()  # Mantém a sujeira inicial
+            self.matriz = [linha.copy() for linha in self.matriz_ini]
         self.lbl_acao.config(text="Última Ação: Nenhuma")
         self._atualizar_interface()
 
