@@ -6,14 +6,14 @@ from PIL import Image, ImageTk
 from agente_simples import AgenteAspiradorMatriz
 from agente_modelo import AgenteAspiradorMatrizInteligente
 
-N_LINHAS = 4
-N_COLUNAS = 4
+N_LINHAS = 6
+N_COLUNAS = 6
 
 class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
-        self.root.title("Agente Aspirador de Pó - Matriz 4x4")
-        self.root.geometry("690x750")
+        self.root.title("Agente Aspirador de Pó - Matriz nxm")
+        self.root.geometry("1080x1080")
         self.root.resizable(False, False)
         self.colisao = False
 
@@ -25,8 +25,8 @@ class InterfaceMatrizAspirador:
         # Instancia o agente inicial (Reativo Simples por padrão)
         self.agente = AgenteAspiradorMatriz()
 
-        self.pos_linha = 0
-        self.pos_coluna = 0
+        self.pos_linha = random.randint(0, N_LINHAS - 1)
+        self.pos_coluna = random.randint(0, N_COLUNAS - 1)
 
         caminho_base = os.path.dirname(os.path.abspath(__file__))
         caminho_imagem = os.path.join(caminho_base, "aspira_agent.png")
@@ -120,7 +120,7 @@ class InterfaceMatrizAspirador:
         self.btn_reset.pack(side="right", padx=5)
 
         # Canvas para Desenhar a Matriz 4x4
-        self.canvas = tk.Canvas(self.root, width=400, height=400, bg="#ffffff", highlightthickness=1)
+        self.canvas = tk.Canvas(self.root, width=N_COLUNAS * 100, height=N_LINHAS * 100, bg="#ffffff", highlightthickness=1)
         self.canvas.pack(pady=10)
 
         # Painel do Histórico e Média Global
@@ -291,8 +291,8 @@ class InterfaceMatrizAspirador:
 
         self.executando = False
         self.btn_auto.config(text="Iniciar Automático")
-        self.pos_linha = 0
-        self.pos_coluna = 0
+        self.pos_linha = random.randint(0, N_LINHAS - 1)
+        self.pos_coluna = random.randint(0, N_COLUNAS - 1)
         self.passos = 0
         self.desempenho_m1 = 0
         self.desempenho_m2 = 0
