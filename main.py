@@ -12,12 +12,11 @@ N_COLUNAS = 4
 class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
-        self.root.title("Agete Aspirador de Pó - Matriz 4x4")
-        self.root.geometry("680x750")
+        self.root.title("Agente Aspirador de Pó - Matriz 4x4")
+        self.root.geometry("690x750")
         self.root.resizable(False, False)
         self.colisao = False
 
-        
         self.agentes_disponiveis = {
             "Agente Reativo Simples": AgenteAspiradorMatriz,
             "Agente Baseado em Modelo (Inteligente)": AgenteAspiradorMatrizInteligente
@@ -32,7 +31,7 @@ class InterfaceMatrizAspirador:
         caminho_base = os.path.dirname(os.path.abspath(__file__))
         caminho_imagem = os.path.join(caminho_base, "aspira_agent.png")
 
-        # Imagem do Robo
+        # Imagem do Robô
         self.img_agente = None
         try:
             if os.path.exists(caminho_imagem):
@@ -81,6 +80,9 @@ class InterfaceMatrizAspirador:
                         particulas.append((px, py, r))
                     self.particulas_po[(l, c)] = particulas
 
+        self.particulas_ini = self.particulas_po.copy()  # Salva o estado inicial para resetar depois
+        self.matriz_ini = [linha.copy() for linha in self.matriz]
+
     def _criar_widgets(self):
         # Painel de Seleção de Agente
         frame_agente = ttk.LabelFrame(self.root, text=" Seleção do Agente ", padding=10)
@@ -108,8 +110,14 @@ class InterfaceMatrizAspirador:
         self.btn_auto = ttk.Button(frame_top, text="Iniciar Automático", command=self.toggle_automatico)
         self.btn_auto.pack(side="left", padx=5)
 
+        # Campo para definir o limite de passos (T)
+        ttk.Label(frame_top, text=" Passos (T):").pack(side="left", padx=(10, 2))
+        self.spin_passos = ttk.Spinbox(frame_top, from_=1, to=500, width=5)
+        self.spin_passos.set(25)  # Valor padrão: 25 passos
+        self.spin_passos.pack(side="left", padx=2)
+
         self.btn_reset = ttk.Button(frame_top, text="Nova Configuração (Reset)", command=self.resetar_simulacao)
-        self.btn_reset.pack(side="left", padx=5)
+        self.btn_reset.pack(side="right", padx=5)
 
         # Canvas para Desenhar a Matriz 4x4
         self.canvas = tk.Canvas(self.root, width=400, height=400, bg="#ffffff", highlightthickness=1)
@@ -122,10 +130,10 @@ class InterfaceMatrizAspirador:
         self.lbl_acao = ttk.Label(frame_info, text="Última Ação: Nenhuma", font=("Arial", 10, "bold"))
         self.lbl_acao.pack(anchor="w", pady=2)
 
-        self.lbl_m1 = ttk.Label(frame_info, text="Medida 1 (Atual): 0 pts", font=("Arial", 9))
+        self.lbl_m1 = ttk.Label(frame_info, text="Medida 1 (+1 por ação Aspirar): 0 pts", font=("Arial", 9))
         self.lbl_m1.pack(anchor="w")
 
-        self.lbl_m2 = ttk.Label(frame_info, text="Medida 2 (Atual - Custo Mov.): 0 pts", font=("Arial", 9))
+        self.lbl_m2 = ttk.Label(frame_info, text="Medida 2 (Aspirar +1 / Movimento -1): 0 pts", font=("Arial", 9))
         self.lbl_m2.pack(anchor="w")
 
         ttk.Separator(frame_info, orient="horizontal").pack(fill="x", pady=5)
@@ -151,7 +159,7 @@ class InterfaceMatrizAspirador:
             text="Pontuação Média Global | Medida 1: 0.00 pts | Medida 2: 0.00 pts (0 execuções)"
         )
         
-        self.resetar_simulacao()
+        self.resetar_simulacao(nova_configuracao=False)  # Mantém a sujeira atual, apenas reseta métricas e posição
 
     def _atualizar_interface(self):
         self.canvas.delete("all")
@@ -187,27 +195,48 @@ class InterfaceMatrizAspirador:
                         self.canvas.create_text(x1 + 50, y1 + 50, text="ASPIRADOR", font=("Arial", 8, "bold"), fill="white")
 
         # Atualizar textos das métricas
-        self.lbl_m1.config(text=f"Medida 1 (1 pt por célula limpa): {self.desempenho_m1} pts")
-        self.lbl_m2.config(text=f"Medida 2 (Custo por movimento): {self.desempenho_m2} pts (Passos: {self.passos})")
+        self.lbl_m1.config(text=f"Medida 1 (+1 por ação Aspirar): {self.desempenho_m1} pts")
+        self.lbl_m2.config(text=f"Medida 2 (Aspirar +1 / Movimento -1): {self.desempenho_m2} pts (Passos: {self.passos})")
 
     def _verificar_colisao(self):
         return [[self.pos_linha <= 0, self.pos_linha >= N_LINHAS - 1],
                 [self.pos_coluna <= 0, self.pos_coluna >= N_COLUNAS - 1]]
 
     def passo_simulacao(self):
+        # Obter o limite de passos configurado pelo usuário no Painel de Controle
+        try:
+            limite_passos = int(self.spin_passos.get())
+        except ValueError:
+            limite_passos = 25
+
+        # CRITÉRIO DE PARADA 1: Verifica se atingiu o limite de passos T
+        if self.passos >= limite_passos:
+            if self.executando:
+                self.toggle_automatico()
+            self.lbl_acao.config(text=f"Simulação Concluída: Limite de {limite_passos} passos atingido!")
+            return
+
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
-        
-        # Atualizar a posição conhecida no mapa caso o agente seja baseado em modelo
-        if hasattr(self.agente, 'posicao_atual'):
-            self.agente.posicao_atual = (self.pos_linha, self.pos_coluna)
 
         # 1. Obter ação do agente
         acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
 
-        # 2. Executar Ação no Ambiente
+        # CRITÉRIO DE PARADA 2: O Agente Modelo identificou que não há mais o que fazer
+        if acao == "Parar":
+            if self.executando:
+                self.toggle_automatico()
+            self.lbl_acao.config(text="Simulação Concluída: O Agente identificou que o ambiente está limpo!")
+            return
+
+        # 2. Executar Ação no Ambiente e calcular pontuações
         custo_movimento = 0
+        pontos_aspiracao = 0
+
         if acao == "Aspirar":
-            self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
+            # Ganha ponto APENAS se o local estiver realmente sujo e for limpo nesta ação
+            if self.matriz[self.pos_linha][self.pos_coluna] == "Sujo":
+                pontos_aspiracao = 1
+                self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
         elif acao == "Direita":
             if self._verificar_colisao()[1][1] is False:
                 self.pos_coluna += 1
@@ -220,13 +249,15 @@ class InterfaceMatrizAspirador:
             if self._verificar_colisao()[0][1] is False:
                 self.pos_linha += 1
             custo_movimento = 1
+        elif acao == "Cima":
+            if self._verificar_colisao()[0][0] is False:
+                self.pos_linha -= 1
+            custo_movimento = 1
 
-        # 3. Calcular Avaliação de Desempenho
-        quadrados_limpos = sum(linha.count("Limpo") for linha in self.matriz)
-
+        # 3. Atualizar Avaliações de Desempenho (apenas se executou uma ação válida)
         self.passos += 1
-        self.desempenho_m1 += quadrados_limpos
-        self.desempenho_m2 += (quadrados_limpos - custo_movimento)
+        self.desempenho_m1 += pontos_aspiracao
+        self.desempenho_m2 += (pontos_aspiracao - custo_movimento)
 
         # Atualizar Interface
         self.lbl_acao.config(text=f"Última Ação: {acao} em ({self.pos_linha}, {self.pos_coluna})")
@@ -246,7 +277,7 @@ class InterfaceMatrizAspirador:
             self.passo_simulacao()
             self.root.after(300, self._loop_automatico)
 
-    def resetar_simulacao(self):
+    def resetar_simulacao(self, nova_configuracao=True):
         if self.passos > 0:
             self.historico_m1.append(self.desempenho_m1 / self.passos)
             self.historico_m2.append(self.desempenho_m2 / self.passos)
@@ -270,8 +301,11 @@ class InterfaceMatrizAspirador:
         agente_selecionado = self.combo_agente.get()
         classe_agente = self.agentes_disponiveis[agente_selecionado]
         self.agente = classe_agente()
-
-        self._gerar_sujeira_aleatoria()
+        if nova_configuracao:
+            self._gerar_sujeira_aleatoria()
+        else:
+            self.particulas_po = self.particulas_ini.copy()  # Mantém a sujeira inicial
+            self.matriz = [linha.copy() for linha in self.matriz_ini]
         self.lbl_acao.config(text="Última Ação: Nenhuma")
         self._atualizar_interface()
 
