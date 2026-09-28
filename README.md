@@ -185,12 +185,6 @@ venv\Scripts\activate
 
 ### 4. Instalar as dependências
 
-Com o ambiente virtual ativado:
-
-```bash
-pip install -r requirements.txt
-```
-
 As principais dependências do projeto são:
 
 ```text
