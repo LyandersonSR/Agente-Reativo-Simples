@@ -6,90 +6,62 @@ from PIL import Image, ImageTk
 from agente_simples import AgenteAspiradorMatriz
 from agente_modelo import AgenteAspiradorMatrizInteligente
 
-N_LINHAS = 4
-N_COLUNAS = 4
+N_LINHAS = 5
+N_COLUNAS = 5
 
 class InterfaceMatrizAspirador:
     def __init__(self, root):
         self.root = root
-        self.root.title("Agente Aspirador de Pó - Matriz 4x4")
-        self.root.geometry("690x750")
+        self.root.title("Agente Aspirador de Pó - Matriz nxm")
+        self.root.geometry("900x650")
         self.root.resizable(False, False)
-        self.colisao = False
 
         self.agentes_disponiveis = {
             "Agente Reativo Simples": AgenteAspiradorMatriz,
             "Agente Baseado em Modelo (Inteligente)": AgenteAspiradorMatrizInteligente
         }
 
-        # Instancia o agente inicial (Reativo Simples por padrão)
         self.agente = AgenteAspiradorMatriz()
 
-        self.pos_linha = 0
-        self.pos_coluna = 0
-
+        self.pos_linha = random.randint(0, N_LINHAS - 1)
+        self.pos_coluna = random.randint(0, N_COLUNAS - 1)
+        self.pos_linha_ini = self.pos_linha
+        self.pos_coluna_ini = self.pos_coluna
+        
         caminho_base = os.path.dirname(os.path.abspath(__file__))
         caminho_imagem = os.path.join(caminho_base, "aspira_agent.png")
 
-        # Imagem do Robô
         self.img_agente = None
         try:
             if os.path.exists(caminho_imagem):
                 img_original = Image.open(caminho_imagem)
-                img_resized = img_original.resize((60, 60), Image.Resampling.LANCZOS)
+                img_resized = img_original.resize((50, 50), Image.Resampling.LANCZOS)
                 self.img_agente = ImageTk.PhotoImage(img_resized)
-            else:
-                print(f"Erro: O arquivo '{caminho_imagem}' não foi encontrado.")
         except Exception as e:
             print(f"Erro ao carregar imagem: {e}")
 
-        # Matriz 4x4 de estado ('Sujo' ou 'Limpo')
         self.matriz = [["Limpo" for _ in range(N_COLUNAS)] for _ in range(N_LINHAS)]
-        
-        # Posições fixas do pó para manter consistência visual
         self.particulas_po = {}
+        self.obstaculos = set()
         
-        # Métricas da simulação atual
         self.passos = 0
         self.desempenho_m1 = 0
         self.desempenho_m2 = 0
         self.executando = False
 
-        # Registro de pontuações globais (Histórico)
         self.historico_m1 = []
         self.historico_m2 = []
 
-        self._gerar_sujeira_aleatoria()
         self._criar_widgets()
+        self._gerar_ambiente_aleatorio()
         self._atualizar_interface()
 
-    def _gerar_sujeira_aleatoria(self):
-        """Preenche o ambiente 4x4 com sujeira aleatória e define padrão do pó."""
-        self.particulas_po.clear()
-        for l in range(N_LINHAS):
-            for c in range(N_COLUNAS):
-                esta_sujo = random.random() < 0.5
-                self.matriz[l][c] = "Sujo" if esta_sujo else "Limpo"
-                
-                if esta_sujo:
-                    particulas = []
-                    for _ in range(12):  # 12 partículas por quadrado
-                        px = random.randint(15, 85)
-                        py = random.randint(15, 85)
-                        r = random.choice([2, 3, 4])
-                        particulas.append((px, py, r))
-                    self.particulas_po[(l, c)] = particulas
-
-        self.particulas_ini = self.particulas_po.copy()  # Salva o estado inicial para resetar depois
-        self.matriz_ini = [linha.copy() for linha in self.matriz]
-
     def _criar_widgets(self):
-        # Painel de Seleção de Agente
+        # 1. Seleção do Agente
         frame_agente = ttk.LabelFrame(self.root, text=" Seleção do Agente ", padding=10)
         frame_agente.pack(fill="x", padx=15, pady=5)
 
         ttk.Label(frame_agente, text="Tipo de Agente: ").pack(side="left", padx=5)
-        
         self.combo_agente = ttk.Combobox(
             frame_agente, 
             values=list(self.agentes_disponiveis.keys()),
@@ -100,7 +72,7 @@ class InterfaceMatrizAspirador:
         self.combo_agente.pack(side="left", padx=5)
         self.combo_agente.bind("<<ComboboxSelected>>", self._trocar_agente)
 
-        # Painel Superior: Controles
+        # 2. Painel de Controle (Superior)
         frame_top = ttk.LabelFrame(self.root, text=" Painel de Controle ", padding=10)
         frame_top.pack(fill="x", padx=15, pady=5)
 
@@ -110,157 +82,186 @@ class InterfaceMatrizAspirador:
         self.btn_auto = ttk.Button(frame_top, text="Iniciar Automático", command=self.toggle_automatico)
         self.btn_auto.pack(side="left", padx=5)
 
-        # Campo para definir o limite de passos (T)
         ttk.Label(frame_top, text=" Passos (T):").pack(side="left", padx=(10, 2))
         self.spin_passos = ttk.Spinbox(frame_top, from_=1, to=500, width=5)
-        self.spin_passos.set(25)  # Valor padrão: 25 passos
+        self.spin_passos.set(25)
         self.spin_passos.pack(side="left", padx=2)
+
+        # Controle de Obstáculos
+        ttk.Label(frame_top, text=" Obstáculos:").pack(side="left", padx=(15, 2))
+        self.spin_obstaculos = ttk.Spinbox(frame_top, from_=0, to=8, width=4)
+        self.spin_obstaculos.set(3)
+        self.spin_obstaculos.pack(side="left", padx=2)
 
         self.btn_reset = ttk.Button(frame_top, text="Nova Configuração (Reset)", command=self.resetar_simulacao)
         self.btn_reset.pack(side="right", padx=5)
 
-        # Canvas para Desenhar a Matriz 4x4
-        self.canvas = tk.Canvas(self.root, width=400, height=400, bg="#ffffff", highlightthickness=1)
-        self.canvas.pack(pady=10)
+        # 3. Conteúdo Central (Grid na Esquerda + Métricas na Direita)
+        frame_corpo = ttk.Frame(self.root, padding=10)
+        frame_corpo.pack(fill="both", expand=True, padx=15)
 
-        # Painel do Histórico e Média Global
-        frame_info = ttk.LabelFrame(self.root, text=" Métricas e Desempenho ", padding=10)
-        frame_info.pack(fill="x", padx=15, pady=5)
+        # Canvas (Matriz)
+        self.canvas = tk.Canvas(frame_corpo, width=N_COLUNAS * 90, height=N_LINHAS * 90, bg="#ffffff", highlightthickness=1)
+        self.canvas.pack(side="left", anchor="n", padx=(0, 20))
 
-        self.lbl_acao = ttk.Label(frame_info, text="Última Ação: Nenhuma", font=("Arial", 10, "bold"))
-        self.lbl_acao.pack(anchor="w", pady=2)
+        # Painel Lateral de Métricas
+        frame_metricas = ttk.LabelFrame(frame_corpo, text=" Métricas e Desempenho ", padding=15)
+        frame_metricas.pack(side="left", fill="both", expand=True)
 
-        self.lbl_m1 = ttk.Label(frame_info, text="Medida 1 (+1 por ação Aspirar): 0 pts", font=("Arial", 9))
-        self.lbl_m1.pack(anchor="w")
+        self.lbl_acao = ttk.Label(frame_metricas, text="Última Ação:\nNenhuma", font=("Arial", 10, "bold"), wraplength=250)
+        self.lbl_acao.pack(anchor="w", pady=(0, 10))
 
-        self.lbl_m2 = ttk.Label(frame_info, text="Medida 2 (Aspirar +1 / Movimento -1): 0 pts", font=("Arial", 9))
-        self.lbl_m2.pack(anchor="w")
+        self.lbl_m1 = ttk.Label(frame_metricas, text="Medida 1 (+1 por Aspirar):\n0 pts", font=("Arial", 9))
+        self.lbl_m1.pack(anchor="w", pady=5)
 
-        ttk.Separator(frame_info, orient="horizontal").pack(fill="x", pady=5)
+        self.lbl_m2 = ttk.Label(frame_metricas, text="Medida 2 (Aspirar +1 / Mover -1):\n0 pts", font=("Arial", 9))
+        self.lbl_m2.pack(anchor="w", pady=5)
+
+        ttk.Separator(frame_metricas, orient="horizontal").pack(fill="x", pady=15)
 
         self.lbl_global = ttk.Label(
-            frame_info, 
-            text="Pontuação Média Global | Medida 1: 0.00 pts | Medida 2: 0.00 pts (0 execuções)", 
+            frame_metricas, 
+            text="Média Global (Execuções: 0):\n- M1: 0.00 pts\n- M2: 0.00 pts", 
             font=("Arial", 9, "bold"), 
-            foreground="#2e6da4"
+            foreground="#2e6da4",
+            justify="left"
         )
         self.lbl_global.pack(anchor="w")
 
+    def _gerar_ambiente_aleatorio(self):
+        self.particulas_po.clear()
+        self.obstaculos.clear()
+
+        # Sortear número de obstáculos definidos
+        try:
+            n_obs = int(self.spin_obstaculos.get())
+        except ValueError:
+            n_obs = 3
+
+        while len(self.obstaculos) < n_obs:
+            l = random.randint(0, N_LINHAS - 1)
+            c = random.randint(0, N_COLUNAS - 1)
+            # Não coloca obstáculo na posição inicial do robô
+            if (l, c) != (self.pos_linha, self.pos_coluna):
+                self.obstaculos.add((l, c))
+
+        # Sortear Sujeiras
+        for l in range(N_LINHAS):
+            for c in range(N_COLUNAS):
+                if (l, c) in self.obstaculos:
+                    self.matriz[l][c] = "Obstaculo"
+                    continue
+
+                esta_sujo = random.random() < 0.5
+                self.matriz[l][c] = "Sujo" if esta_sujo else "Limpo"
+                
+                if esta_sujo:
+                    particulas = []
+                    for _ in range(10):
+                        px = random.randint(15, 75)
+                        py = random.randint(15, 75)
+                        r = random.choice([2, 3])
+                        particulas.append((px, py, r))
+                    self.particulas_po[(l, c)] = particulas
+
+        self.particulas_ini = self.particulas_po.copy()
+        self.matriz_ini = [linha.copy() for linha in self.matriz]
+
     def _trocar_agente(self, event=None):
-        """Troca a classe do agente dinamicamente com base na seleção do Combobox."""
         agente_selecionado = self.combo_agente.get()
         classe_agente = self.agentes_disponiveis[agente_selecionado]
         self.agente = classe_agente()
         
-        # Reseta o histórico global para comparar métricas do novo agente sem mistura
         self.historico_m1.clear()
         self.historico_m2.clear()
-        self.lbl_global.config(
-            text="Pontuação Média Global | Medida 1: 0.00 pts | Medida 2: 0.00 pts (0 execuções)"
-        )
-        
-        self.resetar_simulacao(nova_configuracao=False)  # Mantém a sujeira atual, apenas reseta métricas e posição
+        self.lbl_global.config(text="Média Global (Execuções: 0):\n- M1: 0.00 pts\n- M2: 0.00 pts")
+        self.resetar_simulacao(nova_configuracao=False)
 
     def _atualizar_interface(self):
         self.canvas.delete("all")
-        tamanho_celula = 100
+        tamanho = 90
 
         for l in range(N_LINHAS):
             for c in range(N_COLUNAS):
-                x1 = c * tamanho_celula
-                y1 = l * tamanho_celula
-                x2 = x1 + tamanho_celula
-                y2 = y1 + tamanho_celula
+                x1, y1 = c * tamanho, l * tamanho
+                x2, y2 = x1 + tamanho, y1 + tamanho
 
-                # Fundo do quadrado
-                cor_fundo = "#fcf8e3" if self.matriz[l][c] == "Sujo" else "#ffffff"
-                self.canvas.create_rectangle(x1, y1, x2, y2, fill=cor_fundo, outline="#dddddd", width=2)
+                if (l, c) in self.obstaculos:
+                    # Desenha bloco cinza escuro representando obstáculo
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="#555555", outline="#333333", width=2)
+                    self.canvas.create_line(x1, y1, x2, y2, fill="#333333", width=2)
+                    self.canvas.create_line(x1, y2, x2, y1, fill="#333333", width=2)
+                else:
+                    cor_fundo = "#fcf8e3" if self.matriz[l][c] == "Sujo" else "#ffffff"
+                    self.canvas.create_rectangle(x1, y1, x2, y2, fill=cor_fundo, outline="#dddddd", width=2)
 
-                # Desenhar o pozinho
-                if self.matriz[l][c] == "Sujo" and (l, c) in self.particulas_po:
-                    for px, py, r in self.particulas_po[(l, c)]:
-                        pos_x = x1 + px
-                        pos_y = y1 + py
-                        self.canvas.create_oval(
-                            pos_x - r, pos_y - r, pos_x + r, pos_y + r, 
-                            fill="#8a6d3b", outline="#6e5428"
-                        )
+                    if self.matriz[l][c] == "Sujo" and (l, c) in self.particulas_po:
+                        for px, py, r in self.particulas_po[(l, c)]:
+                            self.canvas.create_oval(x1+px-r, y1+py-r, x1+px+r, y1+py+r, fill="#8a6d3b", outline="#6e5428")
 
-                # Desenhar Agente Aspirador
                 if l == self.pos_linha and c == self.pos_coluna:
                     if self.img_agente is not None:
-                        self.canvas.create_image(x1 + 50, y1 + 50, image=self.img_agente)
+                        self.canvas.create_image(x1 + 45, y1 + 45, image=self.img_agente)
                     else:
-                        self.canvas.create_oval(x1 + 20, y1 + 20, x2 - 20, y2 - 20, fill="#337ab7", outline="#2e6da4", width=2)
-                        self.canvas.create_text(x1 + 50, y1 + 50, text="ASPIRADOR", font=("Arial", 8, "bold"), fill="white")
+                        self.canvas.create_oval(x1 + 15, y1 + 15, x2 - 15, y2 - 15, fill="#337ab7")
 
-        # Atualizar textos das métricas
-        self.lbl_m1.config(text=f"Medida 1 (+1 por ação Aspirar): {self.desempenho_m1} pts")
-        self.lbl_m2.config(text=f"Medida 2 (Aspirar +1 / Movimento -1): {self.desempenho_m2} pts (Passos: {self.passos})")
+        self.lbl_m1.config(text=f"Medida 1 (+1 por Aspirar):\n{self.desempenho_m1} pts")
+        self.lbl_m2.config(text=f"Medida 2 (Aspirar +1 / Mover -1):\n{self.desempenho_m2} pts (Passos: {self.passos})")
 
     def _verificar_colisao(self):
-        return [[self.pos_linha <= 0, self.pos_linha >= N_LINHAS - 1],
-                [self.pos_coluna <= 0, self.pos_coluna >= N_COLUNAS - 1]]
+        # Verifica paredes ou obstáculos adjacentes
+        cima = (self.pos_linha <= 0) or ((self.pos_linha - 1, self.pos_coluna) in self.obstaculos)
+        baixo = (self.pos_linha >= N_LINHAS - 1) or ((self.pos_linha + 1, self.pos_coluna) in self.obstaculos)
+        esquerda = (self.pos_coluna <= 0) or ((self.pos_linha, self.pos_coluna - 1) in self.obstaculos)
+        direita = (self.pos_coluna >= N_COLUNAS - 1) or ((self.pos_linha, self.pos_coluna + 1) in self.obstaculos)
+
+        return [[cima, baixo], [esquerda, direita]]
 
     def passo_simulacao(self):
-        # Obter o limite de passos configurado pelo usuário no Painel de Controle
         try:
             limite_passos = int(self.spin_passos.get())
         except ValueError:
             limite_passos = 25
 
-        # CRITÉRIO DE PARADA 1: Verifica se atingiu o limite de passos T
         if self.passos >= limite_passos:
-            if self.executando:
-                self.toggle_automatico()
-            self.lbl_acao.config(text=f"Simulação Concluída: Limite de {limite_passos} passos atingido!")
+            if self.executando: self.toggle_automatico()
+            self.lbl_acao.config(text=f"Última Ação:\nLimite de {limite_passos} passos atingido!")
             return
 
         estado_atual = self.matriz[self.pos_linha][self.pos_coluna]
+        colisao = self._verificar_colisao()
 
-        # 1. Obter ação do agente
-        acao = self.agente.obter_acao(estado_atual, self._verificar_colisao())
+        acao = self.agente.obter_acao(estado_atual, colisao)
 
-        # CRITÉRIO DE PARADA 2: O Agente Modelo identificou que não há mais o que fazer
         if acao == "Parar":
-            if self.executando:
-                self.toggle_automatico()
-            self.lbl_acao.config(text="Simulação Concluída: O Agente identificou que o ambiente está limpo!")
+            if self.executando: self.toggle_automatico()
+            self.lbl_acao.config(text="Última Ação:\nAgente identificou ambiente limpo!")
             return
 
-        # 2. Executar Ação no Ambiente e calcular pontuações
-        custo_movimento = 0
-        pontos_aspiracao = 0
+        custo_movimento, pontos_aspiracao = 0, 0
 
         if acao == "Aspirar":
-            # Ganha ponto APENAS se o local estiver realmente sujo e for limpo nesta ação
             if self.matriz[self.pos_linha][self.pos_coluna] == "Sujo":
                 pontos_aspiracao = 1
                 self.matriz[self.pos_linha][self.pos_coluna] = "Limpo"
-        elif acao == "Direita":
-            if self._verificar_colisao()[1][1] is False:
-                self.pos_coluna += 1
+        elif acao == "Direita" and not colisao[1][1]:
+            self.pos_coluna += 1
             custo_movimento = 1
-        elif acao == "Esquerda":
-            if self._verificar_colisao()[1][0] is False:
-                self.pos_coluna -= 1
+        elif acao == "Esquerda" and not colisao[1][0]:
+            self.pos_coluna -= 1
             custo_movimento = 1
-        elif acao == "Baixo":
-            if self._verificar_colisao()[0][1] is False:
-                self.pos_linha += 1
+        elif acao == "Baixo" and not colisao[0][1]:
+            self.pos_linha += 1
             custo_movimento = 1
-        elif acao == "Cima":
-            if self._verificar_colisao()[0][0] is False:
-                self.pos_linha -= 1
+        elif acao == "Cima" and not colisao[0][0]:
+            self.pos_linha -= 1
             custo_movimento = 1
 
-        # 3. Atualizar Avaliações de Desempenho (apenas se executou uma ação válida)
         self.passos += 1
         self.desempenho_m1 += pontos_aspiracao
         self.desempenho_m2 += (pontos_aspiracao - custo_movimento)
 
-        # Atualizar Interface
-        self.lbl_acao.config(text=f"Última Ação: {acao} em ({self.pos_linha}, {self.pos_coluna})")
+        self.lbl_acao.config(text=f"Última Ação:\n{acao} em ({self.pos_linha}, {self.pos_coluna})")
         self._atualizar_interface()
 
     def toggle_automatico(self):
@@ -279,34 +280,38 @@ class InterfaceMatrizAspirador:
 
     def resetar_simulacao(self, nova_configuracao=True):
         if self.passos > 0:
-            self.historico_m1.append(self.desempenho_m1 / self.passos)
-            self.historico_m2.append(self.desempenho_m2 / self.passos)
+            self.historico_m1.append(self.desempenho_m1)
+            self.historico_m2.append(self.desempenho_m2)
 
             media_m1 = sum(self.historico_m1) / len(self.historico_m1)
             media_m2 = sum(self.historico_m2) / len(self.historico_m2)
 
             self.lbl_global.config(
-                text=f"Pontuação Média Global por Passo | Medida 1: {media_m1:.2f} pts | Medida 2: {media_m2:.2f} pts ({len(self.historico_m1)} execuções)"
+                text=f"Média Global (Execuções: {len(self.historico_m1)}):\n- M1: {media_m1:.2f} pts\n- M2: {media_m2:.2f} pts"
             )
 
         self.executando = False
         self.btn_auto.config(text="Iniciar Automático")
-        self.pos_linha = 0
-        self.pos_coluna = 0
-        self.passos = 0
-        self.desempenho_m1 = 0
-        self.desempenho_m2 = 0
         
-        # Reiniciar o estado interno do agente selecionado
-        agente_selecionado = self.combo_agente.get()
-        classe_agente = self.agentes_disponiveis[agente_selecionado]
-        self.agente = classe_agente()
-        if nova_configuracao:
-            self._gerar_sujeira_aleatoria()
+        if nova_configuracao:   
+            self.pos_linha = random.randint(0, N_LINHAS - 1)
+            self.pos_coluna = random.randint(0, N_COLUNAS - 1)
         else:
-            self.particulas_po = self.particulas_ini.copy()  # Mantém a sujeira inicial
+            self.pos_linha = self.pos_linha_ini
+            self.pos_coluna = self.pos_coluna_ini
+
+        self.passos, self.desempenho_m1, self.desempenho_m2 = 0, 0, 0
+        
+        agente_selecionado = self.combo_agente.get()
+        self.agente = self.agentes_disponiveis[agente_selecionado]()
+        
+        if nova_configuracao:
+            self._gerar_ambiente_aleatorio()
+        else:
+            self.particulas_po = self.particulas_ini.copy()
             self.matriz = [linha.copy() for linha in self.matriz_ini]
-        self.lbl_acao.config(text="Última Ação: Nenhuma")
+
+        self.lbl_acao.config(text="Última Ação:\nNenhuma")
         self._atualizar_interface()
 
 if __name__ == "__main__":
