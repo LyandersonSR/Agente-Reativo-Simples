@@ -86,7 +86,7 @@ Diferentemente do agente reativo simples, este agente mantém uma representaçã
 
 O agente utiliza essas informações para atualizar seu **modelo interno do ambiente** e planejar seus movimentos.
 
-## Para encontrar caminhos até regiões desconhecidas ou sujas, é utilizada uma busca em largura (**BFS - Breadth-First Search**).
+## Interface.
 
 ### `main.py`
 
@@ -150,7 +150,7 @@ Durante os experimentos são coletadas informações sobre:
 * melhores resultados obtidos;
 * piores resultados obtidos.
 
-## O programa também gera gráficos para visualizar os resultados experimentais e apresenta os ambientes associados aos melhores e piores resultados de cada agente.
+## O programa também gera gráficos para visualizar os resultados experimentais.
 
 ## Como executar
 
