@@ -12,22 +12,43 @@ from agente_modelo import AgenteAspiradorMatrizInteligente
 N_LINHAS = 5
 N_COLUNAS = 5
 N_AMBIENTES = 1000
+N_OBSTACULOS = 3
 
 # =====================================================================
 # LÓGICA DA SIMULAÇÃO (Encontrar extremos e coletar dados para gráficos)
 # =====================================================================
 
 def gerar_ambiente_inicial():
+    # Sorteia a posição inicial do agente primeiro
+    pos_linha = random.randint(0, N_LINHAS - 1)
+    pos_coluna = random.randint(0, N_COLUNAS - 1)
+    
+    obstaculos = set()
+    # Garante que criaremos a quantidade certa de obstáculos, e não sobre o agente
+    while len(obstaculos) < N_OBSTACULOS:
+        l = random.randint(0, N_LINHAS - 1)
+        c = random.randint(0, N_COLUNAS - 1)
+        if (l, c) != (pos_linha, pos_coluna):
+            obstaculos.add((l, c))
+            
     matriz = [["Limpo" for _ in range(N_COLUNAS)] for _ in range(N_LINHAS)]
+    
     for l in range(N_LINHAS):
         for c in range(N_COLUNAS):
-            if random.random() < 0.5:
-                matriz[l][c] = "Sujo"
-    return matriz
+            if (l, c) in obstaculos:
+                matriz[l][c] = "Obstaculo"
+            else:
+                if random.random() < 0.5:
+                    matriz[l][c] = "Sujo"
+                    
+    return matriz, pos_linha, pos_coluna
 
-def verificar_colisao(pos_linha, pos_coluna):
-    return [[pos_linha <= 0, pos_linha >= N_LINHAS - 1],
-            [pos_coluna <= 0, pos_coluna >= N_COLUNAS - 1]]
+def verificar_colisao(pos_linha, pos_coluna, matriz):
+    cima = (pos_linha <= 0) or (matriz[pos_linha - 1][pos_coluna] == "Obstaculo")
+    baixo = (pos_linha >= N_LINHAS - 1) or (matriz[pos_linha + 1][pos_coluna] == "Obstaculo")
+    esquerda = (pos_coluna <= 0) or (matriz[pos_linha][pos_coluna - 1] == "Obstaculo")
+    direita = (pos_coluna >= N_COLUNAS - 1) or (matriz[pos_linha][pos_coluna + 1] == "Obstaculo")
+    return [[cima, baixo], [esquerda, direita]]
 
 def simular_agente(classe_agente, matriz_inicial, max_passos, pos_linha_ini, pos_coluna_ini):
     matriz = [linha.copy() for linha in matriz_inicial]
@@ -39,7 +60,7 @@ def simular_agente(classe_agente, matriz_inicial, max_passos, pos_linha_ini, pos
 
     for _ in range(max_passos):
         estado_atual = matriz[pos_linha][pos_coluna]
-        colisao = verificar_colisao(pos_linha, pos_coluna)
+        colisao = verificar_colisao(pos_linha, pos_coluna, matriz)
         acao = agente.obter_acao(estado_atual, colisao)
         
         if acao == "Parar":
@@ -90,7 +111,7 @@ def executar_e_coletar_extremos():
         "media_modelo_m2": []
     }
 
-    max_sujeiras = N_LINHAS * N_COLUNAS
+    max_sujeiras = (N_LINHAS * N_COLUNAS) - N_OBSTACULOS
     tracker_sujeira = {
         "simples_m1": {i: [] for i in range(max_sujeiras + 1)},
         "modelo_m1": {i: [] for i in range(max_sujeiras + 1)},
@@ -99,18 +120,15 @@ def executar_e_coletar_extremos():
     }
 
     intervalo_passos = range(25, 61)
-    print("Processando simulações para encontrar os extremos e gerar gráficos (M1, M2 e Sujeiras)...")
+    print("Processando simulações com obstáculos para encontrar os extremos e gerar gráficos...")
 
     for passos in intervalo_passos:
         soma_simp_m1, soma_simp_m2 = 0, 0
         soma_mod_m1, soma_mod_m2 = 0, 0
 
         for _ in range(N_AMBIENTES):
-            matriz_inicial = gerar_ambiente_inicial()
+            matriz_inicial, pos_ini_linha, pos_ini_coluna = gerar_ambiente_inicial()
             qtd_sujeira = sum(linha.count("Sujo") for linha in matriz_inicial)
-            
-            pos_ini_linha = random.randint(0, N_LINHAS - 1)
-            pos_ini_coluna = random.randint(0, N_COLUNAS - 1)
             pos_inicial = (pos_ini_linha, pos_ini_coluna)
             
             # Simples
@@ -164,7 +182,7 @@ def executar_e_coletar_extremos():
 class VisualizadorExtremosTk:
     def __init__(self, root, extremos, historico_passos, historico_sujeira):
         self.root = root
-        self.root.title("Simulação Aspirador de Pó - Ambientes e Desempenho")
+        self.root.title("Simulação Aspirador de Pó - Ambientes e Desempenho (Com Obstáculos)")
         self.root.geometry("1000x750")
         self.root.resizable(False, False)
         
@@ -242,7 +260,7 @@ class VisualizadorExtremosTk:
         ax1.plot(self.historico_sujeira["qtd"], self.historico_sujeira["simples_m1"], label="Simples", color="red", linestyle="--", marker="o")
         ax1.plot(self.historico_sujeira["qtd"], self.historico_sujeira["modelo_m1"], label="Modelo", color="green", marker="s")
         ax1.set_title("Medida 1 Média vs Qtd. Sujeira Inicial")
-        ax1.set_xlabel("Quantidade de Sujeira (0-25)")
+        ax1.set_xlabel("Quantidade de Sujeira")
         ax1.set_ylabel("Pontuação Média (M1)")
         ax1.legend()
         ax1.grid(True, linestyle=":", alpha=0.7)
@@ -251,7 +269,7 @@ class VisualizadorExtremosTk:
         ax2.plot(self.historico_sujeira["qtd"], self.historico_sujeira["simples_m2"], label="Simples", color="red", linestyle="--", marker="o")
         ax2.plot(self.historico_sujeira["qtd"], self.historico_sujeira["modelo_m2"], label="Modelo", color="green", marker="s")
         ax2.set_title("Medida 2 Média vs Qtd. Sujeira Inicial")
-        ax2.set_xlabel("Quantidade de Sujeira (0-25)")
+        ax2.set_xlabel("Quantidade de Sujeira")
         ax2.set_ylabel("Pontuação Média (M2)")
         ax2.legend()
         ax2.grid(True, linestyle=":", alpha=0.7)
@@ -285,14 +303,21 @@ class VisualizadorExtremosTk:
                 x2 = x1 + tamanho_celula
                 y2 = y1 + tamanho_celula
 
-                cor_fundo = "#fcf8e3" if matriz[l][c] == "Sujo" else "#ffffff"
-                canvas.create_rectangle(x1, y1, x2, y2, fill=cor_fundo, outline="#dddddd", width=2)
+                if matriz[l][c] == "Obstaculo":
+                    # Desenha Obstáculo
+                    canvas.create_rectangle(x1, y1, x2, y2, fill="#555555", outline="#333333", width=2)
+                    canvas.create_line(x1, y1, x2, y2, fill="#333333", width=2)
+                    canvas.create_line(x1, y2, x2, y1, fill="#333333", width=2)
+                else:
+                    # Fundo normal
+                    cor_fundo = "#fcf8e3" if matriz[l][c] == "Sujo" else "#ffffff"
+                    canvas.create_rectangle(x1, y1, x2, y2, fill=cor_fundo, outline="#dddddd", width=2)
 
-                if matriz[l][c] == "Sujo":
-                    for _ in range(12):
-                        px, py = random.randint(15, 85), random.randint(15, 85)
-                        r = random.choice([2, 3, 4])
-                        canvas.create_oval(x1+px-r, y1+py-r, x1+px+r, y1+py+r, fill="#8a6d3b", outline="#6e5428")
+                    if matriz[l][c] == "Sujo":
+                        for _ in range(12):
+                            px, py = random.randint(15, 85), random.randint(15, 85)
+                            r = random.choice([2, 3, 4])
+                            canvas.create_oval(x1+px-r, y1+py-r, x1+px+r, y1+py+r, fill="#8a6d3b", outline="#6e5428")
 
                 if l == pos_linha and c == pos_coluna:
                     if self.img_agente:
