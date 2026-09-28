@@ -57,7 +57,6 @@ O projeto está organizado nos seguintes arquivos:
 ├── agente_modelo.py
 ├── main.py
 ├── simulacao.py
-├── requirements.txt
 ├── venv/
 └── aspira_agent.png
 ```
@@ -69,9 +68,7 @@ Implementa o **Agente Reativo Simples**.
 O agente utiliza exclusivamente as informações recebidas pelos sensores no estado atual do ambiente. Sua principal regra é:
 
 * Se a posição atual estiver suja → **Aspirar**;
-* Caso contrário → movimentar-se pela matriz seguindo uma estratégia de varredura.
-
-O agente mantém informações de direção e modo de movimentação para percorrer o ambiente.
+* Caso contrário → movimentar-se pela matriz para varredura.
 
 ---
 
